@@ -19,7 +19,8 @@ public:
   void TearDown() override {
     auto clock_end = std::chrono::steady_clock::now();
     auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(clock_end - clock_start);
-    ASSERT_LE(elapsed_time, MAX_ELAPSED_TIME);
+    // TODO remove .count() once libc++ implements operator<<(ostream &, const duration &)
+    ASSERT_LE(elapsed_time.count(), MAX_ELAPSED_TIME.count());
   }
 
 private:
