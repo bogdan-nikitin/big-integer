@@ -71,17 +71,24 @@ jobs:
           git fetch upstream master
           if git merge-base --is-ancestor upstream/master @; then
             echo 'Tests are already up to date.'
+            echo 'TESTS_UPDATED=0' >> $GITHUB_ENV
           else
-            echo -ne '\e[0;33mWARNING: Tests were not updated on your side. '
-            echo -e 'This script will however run the most recent version.\e[0m'
+            echo 'Updating tests...'
             git rebase upstream/master
+            echo 'Tests updated.'
+            echo 'TESTS_UPDATED=1' >> $GITHUB_ENV
           fi
 
       - name: Build main
         run: ${{ matrix.compilerSetter }} ci-extra/build.sh ${{ matrix.build_type }}
 
       - name: Test main
-        run: ${{ matrix.compilerSetter }} ci-extra/test.sh ${{ matrix.build_type }}
+        run: |
+          if [[ -n ${{ env.TESTS_UPDATED }} ]]; then
+            echo -ne '\e[0;33mWARNING: Tests were not updated on your side. '
+            echo -e 'This script will however run the most recent version.\e[0m'
+          fi
+          ${{ matrix.compilerSetter }} ci-extra/test.sh ${{ matrix.build_type }}
 
       - if: ${{ matrix.build_type == 'RelWithDebInfo' }}
         name: Test main with valgrind
