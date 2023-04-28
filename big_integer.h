@@ -1,7 +1,11 @@
 #pragma once
 
+#include <compare>
+#include <cstdint>
+#include <functional>
 #include <iosfwd>
 #include <string>
+#include <vector>
 
 struct big_integer {
   big_integer();
@@ -35,6 +39,7 @@ struct big_integer {
   big_integer& operator--();
   big_integer operator--(int);
 
+  friend std::strong_ordering operator<=>(const big_integer& a, const big_integer& b);
   friend bool operator==(const big_integer& a, const big_integer& b);
   friend bool operator!=(const big_integer& a, const big_integer& b);
   friend bool operator<(const big_integer& a, const big_integer& b);
@@ -42,7 +47,21 @@ struct big_integer {
   friend bool operator<=(const big_integer& a, const big_integer& b);
   friend bool operator>=(const big_integer& a, const big_integer& b);
 
+  big_integer& negate();
+  //big_integer& inverse();
+  size_t size() const;
+
   friend std::string to_string(const big_integer& a);
+  void swap(big_integer& other);
+  //private:
+  using digit = uint32_t;
+  using double_digit = uint64_t;
+  static const digit base = std::numeric_limits<digit>::max();
+  static const size_t digit_size = std::numeric_limits<digit>::digits;
+  std::vector<digit> digits_;
+  bool is_negative_;
+  big_integer& bitwise(const big_integer& rhs, std::function<digit(digit, digit)> f);
+  big_integer mul_digit(digit d) const;
 };
 
 big_integer operator+(const big_integer& a, const big_integer& b);
