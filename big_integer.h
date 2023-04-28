@@ -62,6 +62,9 @@ struct big_integer {
   bool is_negative_;
   big_integer& bitwise(const big_integer& rhs, std::function<digit(digit, digit)> f);
   big_integer mul_digit(digit d) const;
+  void strip_zeros();
+  std::strong_ordering abs_compare(const big_integer& rhs) const;
+  bool is_zero() const;
 };
 
 big_integer operator+(const big_integer& a, const big_integer& b);

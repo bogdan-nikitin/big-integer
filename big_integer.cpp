@@ -1,5 +1,6 @@
 #include "big_integer.h"
 
+#include <compare>
 #include <cstddef>
 #include <cstring>
 #include <functional>
@@ -7,11 +8,6 @@
 #include <ostream>
 #include <stdexcept>
 
-
-static bool are_zeros(std::vector<big_integer::digit>::const_iterator begin,
-                      std::vector<big_integer::digit>::const_iterator end) {
-  return std::all_of(begin, end, [](big_integer::digit d) { return d == 0; });
-}
 
 static std::strong_ordering less(bool cond) { 
   return cond ? std::strong_ordering::less : std::strong_ordering::greater;
@@ -52,9 +48,7 @@ big_integer& big_integer::operator+=(const big_integer& rhs) {
     }
     
   } else {
-    bool all_zero = true;
-    bool is_smaller = (negate() < rhs) ^ rhs.is_negative_;
-    negate();
+    bool is_smaller = std::strong_ordering::less == abs_compare(rhs);
     const big_integer &smaller = is_smaller ? *this : rhs,
                       &bigger  = is_smaller ? rhs : *this;
     bool borrow = false;
@@ -63,14 +57,13 @@ big_integer& big_integer::operator+=(const big_integer& rhs) {
       digit difference = bigger.digits_[i] - smaller.digits_[i] - borrow;
       borrow = bigger.digits_[i] == 0 || bigger.digits_[i] - borrow < smaller.digits_[i];
       digits_[i] = difference;
-      all_zero &= digits_[i] == 0;
     }
     for (; i < size() && borrow; ++i) {
       borrow = digits_[i] == 0;
       digits_[i]--;
-      all_zero &= digits_[i] == 0;
     }
-    is_negative_ = !all_zero && (is_negative_ ^ is_smaller);
+    is_negative_ = is_negative_ ^ is_smaller;
+    strip_zeros();
   }
   return *this;
 }
@@ -138,6 +131,7 @@ big_integer& big_integer::operator>>=(int rhs) {
   }
   digits_[last] = digits_[last + loss] >> remain;
   std::fill(digits_.end() - static_cast<ptrdiff_t>(loss), digits_.end(), 0);
+  strip_zeros();
   return *this;
 }
 
@@ -155,14 +149,12 @@ big_integer big_integer::operator~() const {
 
 big_integer& big_integer::operator++() {
   if (is_negative_) {
-    bool all_zero = true;
     bool borrow = true;
     for (size_t i = 0; i < size() && borrow; ++i) {
       borrow = digits_[i] == 0;
       digits_[i]--;
-      all_zero = digits_[i] == 0;
     }
-    is_negative_ &= !all_zero;
+    strip_zeros(); 
   } else {
     bool carry = true;
     for (size_t i = 0; i < size() && carry; ++i) {
@@ -172,7 +164,6 @@ big_integer& big_integer::operator++() {
     if (carry) {
       digits_.push_back(1);
     }
-    
   }
   return *this;
 }
@@ -249,18 +240,8 @@ std::strong_ordering operator<=>(const big_integer& a, const big_integer& b) {
   if (a.is_negative_ != b.is_negative_) {
     return less(a.is_negative_);
   }
-  size_t common_size = std::min(a.size(), b.size());
-  if (!are_zeros(a.digits_.begin() + static_cast<ptrdiff_t>(common_size), a.digits_.end())) {
-    return less(a.is_negative_);
-  } else if (!are_zeros(b.digits_.begin() + static_cast<ptrdiff_t>(common_size), b.digits_.end())) {
-    return less(!a.is_negative_);
-  }
-  for (size_t i = common_size; i > 0; --i) {
-    if (a.digits_[i - 1] != b.digits_[i - 1]) {
-      return less((a.digits_[i - 1] < b.digits_[i - 1]) ^ a.is_negative_);
-    }
-  }
-  return std::strong_ordering::equal;
+  std::strong_ordering order = a.abs_compare(b);
+  return a.is_negative_ ? 0 <=> order : order;
 }
 
 bool operator==(const big_integer& a, const big_integer& b) = default;
@@ -319,6 +300,33 @@ big_integer big_integer::mul_digit(digit d) const {
 
 size_t big_integer::size() const {
   return digits_.size();
+}
+
+
+void big_integer::strip_zeros() {
+  size_t i = size();
+  while (i > 0 && digits_[i - 1] == 0) {
+    --i;
+  }
+  digits_.erase(digits_.begin() + static_cast<ptrdiff_t>(i), digits_.end());
+  is_negative_ &= !is_zero();
+}
+
+
+std::strong_ordering big_integer::abs_compare(const big_integer& rhs) const {
+  if (size() != rhs.size()) {
+    return less(size() < rhs.size());
+  }
+  for (size_t i = size(); i > 0; --i) {
+    if (digits_[i - 1] != rhs.digits_[i - 1]) {
+      return less(digits_[i - 1] < rhs.digits_[i - 1]);
+    }
+  }
+  return std::strong_ordering::equal;
+}
+
+bool big_integer::is_zero() const {
+  return size() == 0;
 }
 
 std::string to_string(const big_integer& a) {
