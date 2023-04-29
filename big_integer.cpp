@@ -6,7 +6,7 @@
 #include <functional>
 #include <limits>
 #include <ostream>
-#include <stdexcept>
+#include <stack>
 #include <string>
 
 const size_t big_integer::digit_size = std::numeric_limits<big_integer::digit>::digits;
@@ -37,7 +37,8 @@ big_integer::big_integer(const std::string& str) : is_negative_(str.starts_with(
   big_integer cur_base(1);
   while (true) {
     bool in_bound = i >= bound;
-    abs_add_shifted(cur_base * big_integer(static_cast<digit>(std::stoul(str.substr(in_bound ? i - exp10 : is_negative_, in_bound ? exp10 : i - is_negative_)))));
+    abs_add_shifted(cur_base * big_integer(static_cast<digit>(std::stoul(str.substr(
+                                   in_bound ? i - exp10 : is_negative_, in_bound ? exp10 : i - is_negative_)))));
     i = in_bound ? i - exp10 : is_negative_;
     if (i == is_negative_) {
       break;
@@ -217,7 +218,7 @@ big_integer operator<<(const big_integer& a, int b) {
 }
 
 big_integer operator>>(const big_integer& a, int b) {
-  return big_integer(a) <<= b;
+  return big_integer(a) >>= b;
 }
 
 std::strong_ordering operator<=>(const big_integer& a, const big_integer& b) {
@@ -405,12 +406,11 @@ std::pair<big_integer, big_integer> big_integer::divrem(const big_integer& rhs) 
   if (is_big) {
     a.abs_sub_shifted(rhs, m);
     quotient.digits_[m] = 1;
-  } else {
-    quotient.digits_[m] = 0;
   }
   for (size_t i = m; i > 0; --i) {
     size_t j = i - 1;
-    auto q = static_cast<digit>(((static_cast<double_digit>(a.digits_[n + j]) << digit_size) + a.digits_[n + j - 1]) / b.digits_[n - 1]);
+    auto q = static_cast<digit>(((static_cast<double_digit>(a.digits_[n + j]) << digit_size) + a.digits_[n + j - 1]) /
+                                b.digits_[n - 1]);
     quotient.digits_[j] = q;
     a.sub_shifted(b.mul_digit(q), j);
     while (a.is_negative_) {
@@ -424,7 +424,19 @@ std::pair<big_integer, big_integer> big_integer::divrem(const big_integer& rhs) 
 big_integer::big_integer(big_integer::digit d) : digits_{d}, is_negative_(false) {}
 
 std::string to_string(const big_integer& a) {
-  return "";
+  big_integer b(a);
+  std::stack<big_integer::digit> decimal;
+  while (!b.is_zero()) {
+    auto [div, rem] = b.divrem(big_integer::base10);
+    decimal.push(rem.digits_[0]);
+    b = div;
+  }
+  std::string result = a.is_negative_ ? "-" : "";
+  while (!decimal.empty()) {
+    result += std::to_string(decimal.top());
+    decimal.pop();
+  }
+  return result;
 }
 
 std::ostream& operator<<(std::ostream& out, const big_integer& a) {
