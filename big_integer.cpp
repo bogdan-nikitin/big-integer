@@ -7,69 +7,55 @@
 #include <limits>
 #include <ostream>
 #include <stdexcept>
+#include <string>
 
+const size_t big_integer::digit_size = std::numeric_limits<big_integer::digit>::digits;
+const big_integer::digit big_integer::base = std::numeric_limits<big_integer::digit>::max();
+const size_t big_integer::exp10 = std::numeric_limits<digit>::digits10;
+const big_integer big_integer::base10(static_cast<digit>(std::pow(10, big_integer::exp10)));
 
-static std::strong_ordering less(bool cond) { 
+static std::strong_ordering less(bool cond) {
   return cond ? std::strong_ordering::less : std::strong_ordering::greater;
+}
+
+static std::strong_ordering reverse(std::strong_ordering order) {
+  return 0 <=> order;
 }
 
 big_integer::big_integer() : is_negative_{false} {}
 
 big_integer::big_integer(const big_integer& other) = default;
 
-big_integer::big_integer(int a) 
-  : digits_{a == std::numeric_limits<int>::min() ? 
-      static_cast<digit>(std::numeric_limits<int>::max()) + 1 :
-      static_cast<digit>(std::abs(a))}
-  , is_negative_{a < 0} {}
+big_integer::big_integer(int a)
+    : digits_{a == std::numeric_limits<int>::min() ? static_cast<digit>(std::numeric_limits<int>::max()) + 1
+                                                   : static_cast<digit>(std::abs(a))},
+      is_negative_{a < 0} {}
 
-big_integer::big_integer(const std::string& str) {}
+big_integer::big_integer(const std::string& str) : is_negative_(str.starts_with("-")) {
+  size_t bound = exp10 + is_negative_;
+  size_t i = str.size();
+  big_integer cur_base(1);
+  while (true) {
+    bool in_bound = i >= bound;
+    abs_add_shifted(cur_base * big_integer(static_cast<digit>(std::stoul(str.substr(in_bound ? i - exp10 : is_negative_, in_bound ? exp10 : i - is_negative_)))));
+    i = in_bound ? i - exp10 : is_negative_;
+    if (i == is_negative_) {
+      break;
+    }
+    cur_base *= base10;
+  }
+}
 
 big_integer::~big_integer() = default;
 
 big_integer& big_integer::operator=(const big_integer& other) = default;
 
 big_integer& big_integer::operator+=(const big_integer& rhs) {
-  digits_.resize(std::max(rhs.size(), size()));
-  if (is_negative_ == rhs.is_negative_) {
-    bool carry = false;
-    size_t i = 0;
-    for (; i < rhs.size(); ++i) {
-      digit sum = digits_[i] + rhs.digits_[i] + carry;
-      carry = digits_[i] > big_integer::base - rhs.digits_[i] || (digits_[i] + rhs.digits_[i] == big_integer::base && carry);
-      digits_[i] = sum;
-    }
-    for (; i < size() && carry; ++i) {
-      digits_[i]++;
-      carry = digits_[i] == 0;
-    }
-    if (carry) {
-      digits_.push_back(1);
-    }
-    
-  } else {
-    bool is_smaller = std::strong_ordering::less == abs_compare(rhs);
-    const big_integer &smaller = is_smaller ? *this : rhs,
-                      &bigger  = is_smaller ? rhs : *this;
-    bool borrow = false;
-    size_t i = 0;
-    for (; i < smaller.size(); ++i) {
-      digit difference = bigger.digits_[i] - smaller.digits_[i] - borrow;
-      borrow = bigger.digits_[i] == 0 || bigger.digits_[i] - borrow < smaller.digits_[i];
-      digits_[i] = difference;
-    }
-    for (; i < size() && borrow; ++i) {
-      borrow = digits_[i] == 0;
-      digits_[i]--;
-    }
-    is_negative_ = is_negative_ ^ is_smaller;
-    strip_zeros();
-  }
-  return *this;
+  return add_shifted(rhs);
 }
 
 big_integer& big_integer::operator-=(const big_integer& rhs) {
-  return (this->negate() += rhs).negate();
+  return sub_shifted(rhs);
 }
 
 big_integer& big_integer::operator*=(const big_integer& rhs) {
@@ -99,9 +85,8 @@ big_integer& big_integer::operator^=(const big_integer& rhs) {
   return bitwise(rhs, std::bit_xor());
 }
 
-
 big_integer& big_integer::operator<<=(int rhs) {
-  digit shift = static_cast<digit>(rhs);
+  auto shift = static_cast<digit>(rhs);
   size_t start = shift / big_integer::digit_size;
   size_t gain = start + (shift % big_integer::digit_size != 0);
   size_t remain = shift - start * big_integer::digit_size;
@@ -109,7 +94,8 @@ big_integer& big_integer::operator<<=(int rhs) {
   digits_.resize(old_size + gain);
   digit prev = 0;
   for (size_t i = old_size; i > 0; --i) {
-    digits_[i - 1 + gain] = (prev << remain) | (digits_[i - 1] >> (big_integer::digit_size - remain));
+    digits_[i - 1 + gain] =
+        (prev << remain) | (digits_[i - 1] >> ((big_integer::digit_size - remain) % big_integer::digit_size));
     prev = digits_[i - 1];
   }
   digits_[start] = digits_[0] << remain;
@@ -117,14 +103,14 @@ big_integer& big_integer::operator<<=(int rhs) {
   if (is_negative_) {
     --*this;
   }
+  strip_zeros();
   return *this;
 }
 
 big_integer& big_integer::operator>>=(int rhs) {
-  digit shift = static_cast<digit>(rhs);
+  auto shift = static_cast<digit>(rhs);
   size_t loss = shift / big_integer::digit_size;
   size_t remain = shift - loss * big_integer::digit_size;
-  digit prev = 0;
   size_t last = size() - loss - 1;
   for (size_t i = 0; i < last; ++i) {
     digits_[i] = (digits_[i + loss] >> remain) | (digits_[i + 1 + loss] << (big_integer::digit_size - remain));
@@ -154,7 +140,7 @@ big_integer& big_integer::operator++() {
       borrow = digits_[i] == 0;
       digits_[i]--;
     }
-    strip_zeros(); 
+    strip_zeros();
   } else {
     bool carry = true;
     for (size_t i = 0; i < size() && carry; ++i) {
@@ -199,21 +185,19 @@ big_integer operator-(const big_integer& a, const big_integer& b) {
 
 big_integer operator*(const big_integer& a, const big_integer& b) {
   big_integer result;
-  result.is_negative_ = a.is_negative_;
   for (size_t i = 0; i < b.size(); ++i) {
-    result += a.mul_digit(b.digits_[i]) << static_cast<int>(big_integer::digit_size * i);
+    result.abs_add_shifted(a.mul_digit(b.digits_[i]), i);
   }
   result.is_negative_ = a.is_negative_ ^ b.is_negative_;
   return result;
 }
 
 big_integer operator/(const big_integer& a, const big_integer& b) {
-
-  return a;
+  return a.divrem(b).first;
 }
 
 big_integer operator%(const big_integer& a, const big_integer& b) {
-  return a;
+  return a.divrem(b).second;
 }
 
 big_integer operator&(const big_integer& a, const big_integer& b) {
@@ -240,8 +224,8 @@ std::strong_ordering operator<=>(const big_integer& a, const big_integer& b) {
   if (a.is_negative_ != b.is_negative_) {
     return less(a.is_negative_);
   }
-  std::strong_ordering order = a.abs_compare(b);
-  return a.is_negative_ ? 0 <=> order : order;
+  std::strong_ordering order = a.abs_compare_shifted(b);
+  return a.is_negative_ ? reverse(order) : order;
 }
 
 bool operator==(const big_integer& a, const big_integer& b) = default;
@@ -256,7 +240,8 @@ big_integer& big_integer::negate() {
   return *this;
 }
 
-big_integer& big_integer::bitwise(const big_integer& rhs, std::function<big_integer::digit(big_integer::digit, big_integer::digit)> f) {
+big_integer& big_integer::bitwise(const big_integer& rhs,
+                                  std::function<big_integer::digit(big_integer::digit, big_integer::digit)> f) {
   size_t common_size = std::min(size(), rhs.size());
   bool borrow = true, rhs_borrow = true;
   bool is_neg = f(is_negative_, rhs.is_negative_);
@@ -266,18 +251,21 @@ big_integer& big_integer::bitwise(const big_integer& rhs, std::function<big_inte
     rhs_borrow = rhs.digits_[i] == 0 && rhs_borrow;
     digit d = digits_[i] - (is_negative_ && borrow ? 1 : 0);
     digit rhs_d = rhs.digits_[i] - (rhs.is_negative_ && rhs_borrow ? 1 : 0);
-    digits_[i] = f((d ^ (is_negative_ ? big_integer::base : 0)), (rhs_d ^ (rhs.is_negative_ ? big_integer::base : 0))) ^ (is_neg ? big_integer::base : 0);
+    digits_[i] = f((d ^ (is_negative_ ? big_integer::base : 0)), (rhs_d ^ (rhs.is_negative_ ? big_integer::base : 0))) ^
+                 (is_neg ? big_integer::base : 0);
     digits_[i] ^= (is_neg ? big_integer::base : 0);
   }
   for (; i < digits_.size(); ++i) {
     digit d = digits_[i] - (is_negative_ && borrow ? 1 : 0);
-    digits_[i] = f((d ^ (is_negative_ ? big_integer::base : 0)), (rhs.is_negative_ ? base : 0)) ^ (is_neg ? big_integer::base : 0);
+    digits_[i] = f((d ^ (is_negative_ ? big_integer::base : 0)), (rhs.is_negative_ ? base : 0)) ^
+                 (is_neg ? big_integer::base : 0);
   }
 
   is_negative_ = is_neg;
   if (is_neg) {
     ++*this;
   }
+  strip_zeros();
   return *this;
 }
 
@@ -285,13 +273,13 @@ big_integer big_integer::mul_digit(digit d) const {
   big_integer result;
   result.digits_.resize(size());
   for (size_t i = 0; i < size() - 1; ++i) {
-    double_digit product = static_cast<double_digit>(digits_[i]) * static_cast<double_digit>(d);
+    double_digit product = static_cast<double_digit>(digits_[i]) * d;
     result.digits_[i] += product;
-    result.digits_[i + 1] += product / digit_size;
+    result.digits_[i + 1] += product >> digit_size;
   }
   double_digit product = static_cast<double_digit>(digits_[size() - 1]) * d;
   result.digits_[size() - 1] += product;
-  digit hi = product / digit_size;
+  digit hi = product >> digit_size;
   if (hi != 0) {
     result.digits_.push_back(hi);
   }
@@ -302,7 +290,6 @@ size_t big_integer::size() const {
   return digits_.size();
 }
 
-
 void big_integer::strip_zeros() {
   size_t i = size();
   while (i > 0 && digits_[i - 1] == 0) {
@@ -312,14 +299,19 @@ void big_integer::strip_zeros() {
   is_negative_ &= !is_zero();
 }
 
-
-std::strong_ordering big_integer::abs_compare(const big_integer& rhs) const {
-  if (size() != rhs.size()) {
-    return less(size() < rhs.size());
+std::strong_ordering big_integer::abs_compare_shifted(const big_integer& rhs, size_t shift) const {
+  size_t rhs_size = rhs.size() + shift;
+  if (size() != rhs_size) {
+    return less(size() < rhs_size);
   }
-  for (size_t i = size(); i > 0; --i) {
-    if (digits_[i - 1] != rhs.digits_[i - 1]) {
-      return less(digits_[i - 1] < rhs.digits_[i - 1]);
+  for (size_t i = rhs.size(); i > 0; --i) {
+    if (digits_[i - 1 + shift] != rhs.digits_[i - 1]) {
+      return less(digits_[i - 1 + shift] < rhs.digits_[i - 1]);
+    }
+  }
+  for (size_t i = 0; i < shift; ++i) {
+    if (digits_[i] != 0) {
+      return std::strong_ordering::greater;
     }
   }
   return std::strong_ordering::equal;
@@ -329,6 +321,108 @@ bool big_integer::is_zero() const {
   return size() == 0;
 }
 
+big_integer& big_integer::abs_add_shifted(const big_integer& rhs, size_t shift) {
+  digits_.resize(std::max(rhs.size() + shift, size()));
+  bool carry = false;
+  size_t i = 0;
+  for (; i < rhs.size(); ++i) {
+    digit& d = digits_[i + shift];
+    digit rhs_d = rhs.digits_[i];
+    digit sum = d + rhs_d + carry;
+    carry = d > base - rhs_d || (d + rhs_d == base && carry);
+    d = sum;
+  }
+  for (; i < size() && carry; ++i) {
+    digits_[i + shift]++;
+    carry = digits_[i + shift] == 0;
+  }
+  if (carry) {
+    digits_.push_back(1);
+  }
+  return *this;
+}
+
+big_integer& big_integer::abs_sub_shifted(const big_integer& rhs, size_t shift) {
+  digits_.resize(std::max(rhs.size() + shift, size()));
+  bool borrow = false;
+  bool is_smaller = std::strong_ordering::less == abs_compare_shifted(rhs, shift);
+  if (is_smaller) {
+    for (size_t i = 0; i < shift; ++i) {
+      digits_[i] = base - digits_[i] + 1;
+    }
+    borrow = shift > 0;
+  }
+  size_t i = 0;
+  for (; i < rhs.size(); ++i) {
+    digit big_d = is_smaller ? rhs.digits_[i] : digits_[i + shift];
+    digit small_d = is_smaller ? digits_[i + shift] : rhs.digits_[i];
+    digit difference = big_d - small_d - borrow;
+    borrow = big_d == 0 || big_d - borrow < small_d;
+    digits_[i + shift] = difference;
+  }
+  for (; i < size() && borrow; ++i) {
+    borrow = digits_[i] == 0;
+    digits_[i]--;
+  }
+  is_negative_ = is_negative_ ^ is_smaller;
+  strip_zeros();
+  return *this;
+}
+
+big_integer& big_integer::add_shifted(const big_integer& rhs, size_t shift) {
+  if (is_negative_ == rhs.is_negative_) {
+    return abs_add_shifted(rhs, shift);
+  }
+  return abs_sub_shifted(rhs, shift);
+}
+
+big_integer& big_integer::sub_shifted(const big_integer& rhs, size_t shift) {
+  return (this->negate().add_shifted(rhs, shift)).negate();
+}
+
+size_t big_integer::get_norm() const {
+  digit d = digits_[size() - 1];
+  size_t result = 0;
+  while (d < base / 2 + 1) {
+    d <<= 1;
+    ++result;
+  }
+  return result;
+}
+
+std::pair<big_integer, big_integer> big_integer::divrem(const big_integer& rhs) const {
+  if (size() < rhs.size()) {
+    return {};
+  }
+  int norm = static_cast<int>(rhs.get_norm());
+  big_integer a = *this << norm;
+  big_integer b = rhs << norm;
+  size_t n = b.size();
+  size_t m = a.size() - n;
+  big_integer quotient;
+  bool is_big = a.abs_compare_shifted(b, m) != std::strong_ordering::less;
+  quotient.digits_.resize(m + is_big);
+  if (is_big) {
+    a.abs_sub_shifted(rhs, m);
+    quotient.digits_[m] = 1;
+  } else {
+    quotient.digits_[m] = 0;
+  }
+  for (size_t i = m; i > 0; --i) {
+    size_t j = i - 1;
+    auto q = static_cast<digit>(((static_cast<double_digit>(a.digits_[n + j]) << digit_size) + a.digits_[n + j - 1]) / b.digits_[n - 1]);
+    quotient.digits_[j] = q;
+    a.sub_shifted(b.mul_digit(q), j);
+    while (a.is_negative_) {
+      --quotient.digits_[j];
+      a.add_shifted(b, j);
+    }
+  }
+  return {quotient, a >> static_cast<int>(norm)};
+}
+
+big_integer::big_integer(big_integer::digit d) : digits_{d}, is_negative_(false) {}
+
 std::string to_string(const big_integer& a) {
   return "";
 }
@@ -336,5 +430,3 @@ std::string to_string(const big_integer& a) {
 std::ostream& operator<<(std::ostream& out, const big_integer& a) {
   return out << to_string(a);
 }
-
-
