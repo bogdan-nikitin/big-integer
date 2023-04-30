@@ -89,6 +89,9 @@ struct big_integer {
   big_integer& sub_shifted(const big_integer& rhs, size_t shift = 0);
 
   big_integer(digit d, bool is_negative);
+  big_integer& to_zero();
+  void check_invariant() const;
+  digit get_digit_value(size_t n) const;
 };
 
 big_integer operator+(const big_integer& a, const big_integer& b);
