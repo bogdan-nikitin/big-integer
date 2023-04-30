@@ -1,5 +1,7 @@
 #include "big_integer.h"
 
+#include <algorithm>
+#include <cctype>
 #include <compare>
 #include <cstddef>
 #include <cstring>
@@ -7,12 +9,13 @@
 #include <limits>
 #include <ostream>
 #include <stack>
+#include <stdexcept>
 #include <string>
 
 const size_t big_integer::digit_size = std::numeric_limits<big_integer::digit>::digits;
 const big_integer::digit big_integer::base = std::numeric_limits<big_integer::digit>::max();
 const size_t big_integer::exp10 = std::numeric_limits<digit>::digits10;
-const big_integer big_integer::base10(static_cast<digit>(std::pow(10, big_integer::exp10)));
+const big_integer big_integer::base10(static_cast<digit>(std::pow(10, big_integer::exp10)), false);
 
 static std::strong_ordering less(bool cond) {
   return cond ? std::strong_ordering::less : std::strong_ordering::greater;
@@ -26,19 +29,27 @@ big_integer::big_integer() : is_negative_{false} {}
 
 big_integer::big_integer(const big_integer& other) = default;
 
-big_integer::big_integer(int a)
-    : digits_{a == std::numeric_limits<int>::min() ? static_cast<digit>(std::numeric_limits<int>::max()) + 1
-                                                   : static_cast<digit>(std::abs(a))},
-      is_negative_{a < 0} {}
+big_integer::big_integer(int a) : is_negative_{a < 0} {
+  if (a == 0) {
+    return;
+  }
+  digits_.push_back(a == std::numeric_limits<int>::min() ? static_cast<digit>(std::numeric_limits<int>::max()) + 1 : 
+      static_cast<digit>(std::abs(a)));
+}
 
 big_integer::big_integer(const std::string& str) : is_negative_(str.starts_with("-")) {
+  if (str.empty()|| std::any_of(str.begin() + is_negative_, str.end(), [](char c) { return !std::isdigit(c); })) {
+    throw std::invalid_argument("Invalid string");
+  }
   size_t bound = exp10 + is_negative_;
   size_t i = str.size();
   big_integer cur_base(1);
   while (true) {
     bool in_bound = i >= bound;
-    abs_add_shifted(cur_base * big_integer(static_cast<digit>(std::stoul(str.substr(
-                                   in_bound ? i - exp10 : is_negative_, in_bound ? exp10 : i - is_negative_)))));
+    abs_add_shifted(cur_base *
+                    big_integer(static_cast<digit>(std::stoul(str.substr(in_bound ? i - exp10 : is_negative_,
+                                                                         in_bound ? exp10 : i - is_negative_))),
+                                false));
     i = in_bound ? i - exp10 : is_negative_;
     if (i == is_negative_) {
       break;
@@ -109,6 +120,9 @@ big_integer& big_integer::operator<<=(int rhs) {
 }
 
 big_integer& big_integer::operator>>=(int rhs) {
+  if (is_zero()) {
+    return *this;
+  }
   auto shift = static_cast<digit>(rhs);
   size_t loss = shift / big_integer::digit_size;
   size_t remain = shift - loss * big_integer::digit_size;
@@ -237,7 +251,13 @@ bool operator<=(const big_integer& a, const big_integer& b) = default;
 bool operator>=(const big_integer& a, const big_integer& b) = default;
 
 big_integer& big_integer::negate() {
-  is_negative_ = !is_negative_;
+  is_negative_ = !is_zero() && !is_negative_;
+  return *this;
+}
+
+
+big_integer& big_integer::negate_if(bool cond) {
+  is_negative_ = cond && !is_zero() && !is_negative_;
   return *this;
 }
 
@@ -396,8 +416,8 @@ std::pair<big_integer, big_integer> big_integer::divrem(const big_integer& rhs) 
     return {};
   }
   int norm = static_cast<int>(rhs.get_norm());
-  big_integer a = *this << norm;
-  big_integer b = rhs << norm;
+  big_integer a = abs() << norm;
+  big_integer b = rhs.abs() << norm;
   size_t n = b.size();
   size_t m = a.size() - n;
   big_integer quotient;
@@ -418,10 +438,21 @@ std::pair<big_integer, big_integer> big_integer::divrem(const big_integer& rhs) 
       a.add_shifted(b, j);
     }
   }
-  return {quotient, a >> static_cast<int>(norm)};
+  bool is_neg = is_negative_ ^ rhs.is_negative_;
+  return {quotient.negate_if(is_neg), (a >> static_cast<int>(norm)).negate_if(is_neg)};
 }
 
-big_integer::big_integer(big_integer::digit d) : digits_{d}, is_negative_(false) {}
+big_integer& big_integer::to_abs() {
+  is_negative_ = false;
+  return *this;
+}
+
+big_integer big_integer::abs() const {
+  return big_integer(*this).to_abs();
+}
+
+
+big_integer::big_integer(big_integer::digit d, bool is_negative) : digits_{d}, is_negative_(is_negative) {}
 
 std::string to_string(const big_integer& a) {
   big_integer b(a);
