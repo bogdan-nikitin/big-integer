@@ -263,28 +263,28 @@ big_integer& big_integer::negate_if(bool cond) {
 
 big_integer& big_integer::bitwise(const big_integer& rhs,
                                   std::function<big_integer::digit(big_integer::digit, big_integer::digit)> f) {
-  size_t common_size = std::min(size(), rhs.size());
-  bool borrow = true, rhs_borrow = true;
+  if (size() < rhs.size()) {
+    digits_.resize(rhs.size());
+  }
+  bool borrow = is_negative_, rhs_borrow = rhs.is_negative_;
   bool is_neg = f(is_negative_, rhs.is_negative_);
   size_t i = 0;
-  for (; i < common_size; ++i) {
+  for (; i < rhs.size(); ++i) {
+    digit d = digits_[i] - borrow;
+    digit rhs_d = rhs.digits_[i] - rhs_borrow;
     borrow = digits_[i] == 0 && borrow;
     rhs_borrow = rhs.digits_[i] == 0 && rhs_borrow;
-    digit d = digits_[i] - (is_negative_ && borrow ? 1 : 0);
-    digit rhs_d = rhs.digits_[i] - (rhs.is_negative_ && rhs_borrow ? 1 : 0);
-    digits_[i] = f((d ^ (is_negative_ ? big_integer::base : 0)), (rhs_d ^ (rhs.is_negative_ ? big_integer::base : 0))) ^
-                 (is_neg ? big_integer::base : 0);
-    digits_[i] ^= (is_neg ? big_integer::base : 0);
-  }
-  for (; i < digits_.size(); ++i) {
-    digit d = digits_[i] - (is_negative_ && borrow ? 1 : 0);
-    digits_[i] = f((d ^ (is_negative_ ? big_integer::base : 0)), (rhs.is_negative_ ? base : 0)) ^
+    digits_[i] = f(is_negative_ ? ~d : d, rhs.is_negative_ ? ~rhs_d : rhs_d) ^
                  (is_neg ? big_integer::base : 0);
   }
-
+  for (; i < size(); ++i) {
+    digit d = digits_[i] - borrow;
+    digits_[i] = f(is_negative_ ? ~d : d, (rhs.is_negative_ ? base : 0)) ^
+                 (is_neg ? big_integer::base : 0);
+  }
   is_negative_ = is_neg;
   if (is_neg) {
-    ++*this;
+    --*this;
   }
   strip_zeros();
   return *this;
@@ -438,8 +438,8 @@ std::pair<big_integer, big_integer> big_integer::divrem(const big_integer& rhs) 
       a.add_shifted(b, j);
     }
   }
-  bool is_neg = is_negative_ ^ rhs.is_negative_;
-  return {quotient.negate_if(is_neg), (a >> static_cast<int>(norm)).negate_if(is_neg)};
+  return {quotient.negate_if(is_negative_ ^ rhs.is_negative_), 
+    (a >> static_cast<int>(norm)).negate_if(is_negative_)};
 }
 
 big_integer& big_integer::to_abs() {
