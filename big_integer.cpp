@@ -444,7 +444,8 @@ big_integer& big_integer::sub_shifted(const big_integer& rhs, size_t shift) {
 }
 
 size_t big_integer::get_norm() const {
-  return std::max(static_cast<int>(digit_size) - static_cast<int>(std::bit_width(digits_[size() - 1])), static_cast<int>(0));
+  return std::max(static_cast<int>(digit_size) - static_cast<int>(std::bit_width(digits_[size() - 1])),
+                  static_cast<int>(0));
 }
 
 std::pair<big_integer, big_integer> big_integer::divrem(const big_integer& rhs) const {
