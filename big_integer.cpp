@@ -3,10 +3,8 @@
 #include <algorithm>
 #include <cassert>
 #include <cctype>
-#include <cmath>
 #include <compare>
 #include <cstddef>
-#include <cstring>
 #include <functional>
 #include <limits>
 #include <ostream>
@@ -57,10 +55,9 @@ big_integer::big_integer(const std::string& str) : is_negative_(str.starts_with(
   big_integer cur_base(1);
   while (true) {
     bool in_bound = i >= bound;
-    abs_add_shifted(cur_base *
-                    big_integer(static_cast<digit>(std::stoul(str.substr(in_bound ? i - exp10 : is_negative_,
-                                                                         in_bound ? exp10 : i - is_negative_))),
-                                false));
+    size_t begin = in_bound ? i - exp10 : is_negative_;
+    size_t end = in_bound ? exp10 : i - is_negative_;
+    abs_add_shifted(cur_base * big_integer(static_cast<digit>(std::stoul(str.substr(begin, end))), false));
     i = in_bound ? i - exp10 : is_negative_;
     if (i == is_negative_) {
       break;
@@ -289,8 +286,9 @@ big_integer& big_integer::negate_if(bool cond) {
   return *this;
 }
 
-big_integer& big_integer::bitwise(const big_integer& rhs,
-                                  std::function<big_integer::digit(big_integer::digit, big_integer::digit)> f) {
+big_integer& big_integer::bitwise(
+    const big_integer& rhs, 
+    const std::function<big_integer::digit(big_integer::digit, big_integer::digit)>& f) {
   if (size() < rhs.size()) {
     digits_.resize(rhs.size());
   }
@@ -488,7 +486,8 @@ std::pair<big_integer, big_integer> big_integer::divrem(const big_integer& rhs) 
       a.add_shifted(b, j);
     }
   }
-  return {quotient.negate_if(is_negative_ ^ rhs.is_negative_), (a >> static_cast<int>(norm)).negate_if(is_negative_)};
+  return {quotient.negate_if(is_negative_ ^ rhs.is_negative_), 
+          (a >> static_cast<int>(norm)).negate_if(is_negative_)};
 }
 
 big_integer& big_integer::to_abs() {
@@ -506,12 +505,12 @@ std::string to_string(const big_integer& a) {
   if (a.is_zero()) {
     return "0";
   }
-  big_integer b(a);
+  big_integer current(a);
   std::stack<big_integer::digit> decimal;
-  while (!b.is_zero()) {
-    auto [div, rem] = b.divrem(big_integer::base10);
+  while (!current.is_zero()) {
+    auto [div, rem] = current.divrem(big_integer::base10);
     decimal.push(rem.is_zero() ? 0 : rem.digits_[0]);
-    b = div;
+    current = div;
   }
   std::string result = (a.is_negative_ ? "-" : "") + std::to_string(decimal.top());
   decimal.pop();

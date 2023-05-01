@@ -1,11 +1,8 @@
 #pragma once
 
 #include <compare>
-#include <cstdint>
 #include <functional>
 #include <iosfwd>
-#include <limits>
-#include <numeric>
 #include <string>
 #include <utility>
 #include <vector>
@@ -22,8 +19,8 @@ struct big_integer {
   big_integer(unsigned long a);
   big_integer(long long a);
   big_integer(unsigned long long a);
-  explicit big_integer(const std::string& str);
 
+  explicit big_integer(const std::string& str);
   ~big_integer();
 
   big_integer& operator=(const big_integer& other);
@@ -68,37 +65,38 @@ struct big_integer {
 private:
   using digit = uint32_t;
   using double_digit = uint64_t;
-  static const digit base;
 
+  static const digit base;
   static const size_t digit_size;
   static const size_t exp10;
   static const big_integer base10;
 
+  big_integer(digit d, bool is_negative);
+
   std::vector<digit> digits_;
   bool is_negative_;
 
-  size_t size() const;
-
   big_integer& negate();
   big_integer& negate_if(bool cond);
-  void swap(big_integer& other);
-  big_integer& bitwise(const big_integer& rhs, std::function<digit(digit, digit)> f);
-  big_integer mul_digit(digit d) const;
-  void strip_zeros();
-  std::strong_ordering abs_compare_shifted(const big_integer& rhs, size_t shift = 0) const;
-  bool is_zero() const;
-  size_t get_norm() const;
-  std::pair<big_integer, big_integer> divrem(const big_integer& b) const;
   big_integer& to_abs();
-  big_integer abs() const;
-
+  big_integer& to_zero();
   big_integer& abs_add_shifted(const big_integer& rhs, size_t shift = 0);
   big_integer& abs_sub_shifted(const big_integer& rhs, size_t shift = 0);
   big_integer& add_shifted(const big_integer& rhs, size_t shift = 0);
   big_integer& sub_shifted(const big_integer& rhs, size_t shift = 0);
+  big_integer& bitwise(const big_integer& rhs, const std::function<digit(digit, digit)>& f);
 
-  big_integer(digit d, bool is_negative);
-  big_integer& to_zero();
+  void swap(big_integer& other);
+  void strip_zeros();
+
+  size_t size() const;
+
+  std::strong_ordering abs_compare_shifted(const big_integer& rhs, size_t shift = 0) const;
+  big_integer mul_digit(digit d) const;
+  bool is_zero() const;
+  size_t get_norm() const;
+  std::pair<big_integer, big_integer> divrem(const big_integer& b) const;
+  big_integer abs() const;
   void check_invariant() const;
   digit get_digit_value(size_t n) const;
 
