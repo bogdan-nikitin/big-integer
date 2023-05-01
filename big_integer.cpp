@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cctype>
+#include <cmath>
 #include <compare>
 #include <cstddef>
 #include <cstring>
@@ -30,13 +31,18 @@ big_integer::big_integer() : is_negative_{false} {}
 
 big_integer::big_integer(const big_integer& other) = default;
 
-big_integer::big_integer(int a) : is_negative_{a < 0} {
-  if (a == 0) {
-    return;
-  }
-  digits_.push_back(a == std::numeric_limits<int>::min() ? static_cast<digit>(std::numeric_limits<int>::max()) + 1 : 
-      static_cast<digit>(std::abs(a)));
-}
+#define BIG_INTEGER_CTOR(T) big_integer::big_integer(T a) { from_primitive(a); }
+
+BIG_INTEGER_CTOR(short)
+BIG_INTEGER_CTOR(unsigned short)
+BIG_INTEGER_CTOR(unsigned)
+BIG_INTEGER_CTOR(int)
+BIG_INTEGER_CTOR(long)
+BIG_INTEGER_CTOR(unsigned long)
+BIG_INTEGER_CTOR(long long)
+BIG_INTEGER_CTOR(unsigned long long)
+
+#undef BIG_INTEGER_CTOR
 
 big_integer::big_integer(const std::string& str) : is_negative_(str.starts_with("-") && str != "-0") {
   if (str == "-0") {
