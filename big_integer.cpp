@@ -1,6 +1,7 @@
 #include "big_integer.h"
 
 #include <algorithm>
+#include <bit>
 #include <cassert>
 #include <cctype>
 #include <compare>
@@ -13,7 +14,8 @@
 #include <string>
 
 const size_t big_integer::digit_size = std::numeric_limits<big_integer::digit>::digits;
-const big_integer::digit big_integer::base = std::numeric_limits<big_integer::digit>::max();
+const big_integer::digit big_integer::max_digit = std::numeric_limits<big_integer::digit>::max();
+const big_integer::double_digit big_integer::base = static_cast<big_integer::double_digit>(big_integer::max_digit) + 1;
 const size_t big_integer::exp10 = std::numeric_limits<digit>::digits10;
 const big_integer big_integer::base10(static_cast<digit>(std::pow(10, big_integer::exp10)), false);
 
@@ -28,20 +30,6 @@ static std::strong_ordering reverse(std::strong_ordering order) {
 big_integer::big_integer() : is_negative_{false} {}
 
 big_integer::big_integer(const big_integer& other) = default;
-
-#define BIG_INTEGER_CTOR(T)                                                                                            \
-  big_integer::big_integer(T a) { from_primitive(a); }
-
-BIG_INTEGER_CTOR(short)
-BIG_INTEGER_CTOR(unsigned short)
-BIG_INTEGER_CTOR(unsigned)
-BIG_INTEGER_CTOR(int)
-BIG_INTEGER_CTOR(long)
-BIG_INTEGER_CTOR(unsigned long)
-BIG_INTEGER_CTOR(long long)
-BIG_INTEGER_CTOR(unsigned long long)
-
-#undef BIG_INTEGER_CTOR
 
 big_integer::big_integer(const std::string& str) {
   if (str == "-0") {
@@ -301,11 +289,11 @@ big_integer& big_integer::bitwise(
     const digit rhs_d = rhs.digits_[i] - rhs_borrow;
     borrow = digits_[i] == 0 && borrow;
     rhs_borrow = rhs.digits_[i] == 0 && rhs_borrow;
-    digits_[i] = f(is_negative_ ? ~d : d, rhs.is_negative_ ? ~rhs_d : rhs_d) ^ (is_neg ? big_integer::base : 0);
+    digits_[i] = f(is_negative_ ? ~d : d, rhs.is_negative_ ? ~rhs_d : rhs_d) ^ (is_neg ? max_digit : 0);
   }
   for (; i < size(); ++i) {
     digit d = digits_[i] - borrow;
-    digits_[i] = f(is_negative_ ? ~d : d, (rhs.is_negative_ ? base : 0)) ^ (is_neg ? big_integer::base : 0);
+    digits_[i] = f(is_negative_ ? ~d : d, (rhs.is_negative_ ? max_digit : 0)) ^ (is_neg ? max_digit : 0);
   }
   is_negative_ = is_neg;
   strip_zeros();
@@ -328,7 +316,7 @@ big_integer big_integer::mul_digit(digit d) const {
     const digit lo = product;
     digit& rd = result.digits_[i];
     const digit sum = rd + product + carry;
-    carry = rd > base - lo || (rd + lo == base && carry);
+    carry = rd > max_digit - lo || (rd + lo == max_digit && carry);
     rd = sum;
     result.digits_[i + 1] += product >> digit_size;
   }
@@ -336,12 +324,12 @@ big_integer big_integer::mul_digit(digit d) const {
   const digit lo = product;
   digit& rd = result.digits_[size() - 1];
   const digit sum = rd + product + carry;
-  carry = rd > base - lo || (rd + lo == base && carry);
+  carry = rd > max_digit - lo || (rd + lo == max_digit && carry);
   rd = sum;
   digit hi = product >> digit_size;
   if (hi != 0 || carry) {
     result.digits_.push_back(hi + carry);
-    if (hi == base && carry) {
+    if (hi == max_digit && carry) {
       result.digits_.push_back(1);
     }
   }
@@ -396,7 +384,7 @@ big_integer& big_integer::abs_add_shifted(const big_integer& rhs, size_t shift) 
     digit& d = digits_[i + shift];
     const digit rhs_d = rhs.digits_[i];
     const digit sum = d + rhs_d + carry;
-    carry = d > base - rhs_d || (d + rhs_d == base && carry);
+    carry = d > max_digit - rhs_d || (d + rhs_d == max_digit && carry);
     d = sum;
   }
   for (i += shift; i < size() && carry; ++i) {
@@ -416,7 +404,7 @@ big_integer& big_integer::abs_sub_shifted(const big_integer& rhs, size_t shift) 
   const bool is_smaller = std::strong_ordering::less == abs_compare_shifted(rhs, shift);
   if (is_smaller) {
     for (size_t i = 0; i < shift; ++i) {
-      digits_[i] = base - digits_[i] + 1;
+      digits_[i] = max_digit - digits_[i] + 1;
     }
     borrow = shift > 0;
   }
@@ -450,13 +438,7 @@ big_integer& big_integer::sub_shifted(const big_integer& rhs, size_t shift) {
 }
 
 size_t big_integer::get_norm() const {
-  digit d = digits_[size() - 1];
-  size_t result = 0;
-  while (d < base / 2 + 1) {
-    d <<= 1;
-    ++result;
-  }
-  return result;
+  return std::max(static_cast<int>(digit_size) - std::bit_width(digits_[size() - 1]), 0);
 }
 
 std::pair<big_integer, big_integer> big_integer::divrem(const big_integer& rhs) const {

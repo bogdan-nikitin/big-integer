@@ -1,6 +1,7 @@
 #pragma once
 
 #include <compare>
+#include <concepts>
 #include <functional>
 #include <iosfwd>
 #include <string>
@@ -11,14 +12,27 @@ struct big_integer {
   big_integer();
   big_integer(const big_integer& other);
 
-  big_integer(short a);
-  big_integer(unsigned short a);
-  big_integer(int a);
-  big_integer(unsigned a);
-  big_integer(long a);
-  big_integer(unsigned long a);
-  big_integer(long long a);
-  big_integer(unsigned long long a);
+  template <typename T> requires std::integral<T>
+  big_integer(T a) {
+    const bool extend = a == std::numeric_limits<T>::min() && std::numeric_limits<T>::is_signed;
+    if (extend) {
+      a = std::numeric_limits<T>::max();
+      is_negative_ = true;
+    } else {
+      is_negative_ = a < 0;
+      a = is_negative_ ? -a : a;
+    }
+    digits_.resize(sizeof(T) / sizeof(digit) + (sizeof(T) % sizeof(digit) != 0));
+    for (size_t i = 0; i < digits_.size(); ++i) {
+      digits_[i] = static_cast<digit>(a);
+      a /= base;
+    }
+    if (extend) {
+      --*this;
+    } else {
+      strip_zeros();
+    }
+  }
 
   explicit big_integer(const std::string& str);
   ~big_integer();
@@ -66,7 +80,8 @@ private:
   using digit = uint32_t;
   using double_digit = uint64_t;
 
-  static const digit base;
+  static const digit max_digit;
+  static const double_digit base;
   static const size_t digit_size;
   static const size_t exp10;
   static const big_integer base10;
@@ -99,24 +114,6 @@ private:
   big_integer abs() const;
   void check_invariant() const;
   digit get_digit_value(size_t n) const;
-
-  template <typename T>
-  void from_primitive(T a) {
-    if (a == std::numeric_limits<T>::min() && std::numeric_limits<T>::is_signed) {
-      from_primitive(std::numeric_limits<T>::max());
-      ++*this;
-      negate();
-      return;
-    }
-    is_negative_ = a < 0;
-    a = is_negative_ ? -a : a;
-    digits_.resize(sizeof(T) / sizeof(digit) + (sizeof(T) % sizeof(digit) != 0));
-    for (size_t i = 0; i < digits_.size(); ++i) {
-      digits_[i] = static_cast<digit>(a);
-      a /= static_cast<double_digit>(base) + 1;
-    }
-    strip_zeros();
-  }
 };
 
 big_integer operator+(const big_integer& a, const big_integer& b);
