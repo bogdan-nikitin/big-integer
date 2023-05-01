@@ -14,8 +14,8 @@ struct big_integer {
   big_integer();
   big_integer(const big_integer& other);
 
-  explicit big_integer(short a);
-  explicit big_integer(unsigned short a);
+  big_integer(short a);
+  big_integer(unsigned short a);
   big_integer(int a);
   big_integer(unsigned a);
   big_integer(long a);
@@ -101,6 +101,7 @@ private:
   big_integer& to_zero();
   void check_invariant() const;
   digit get_digit_value(size_t n) const;
+
   template <typename T>
   void from_primitive(T a) {
     if (a == std::numeric_limits<T>::min() && std::numeric_limits<T>::is_signed) {

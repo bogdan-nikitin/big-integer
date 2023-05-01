@@ -31,7 +31,8 @@ big_integer::big_integer() : is_negative_{false} {}
 
 big_integer::big_integer(const big_integer& other) = default;
 
-#define BIG_INTEGER_CTOR(T) big_integer::big_integer(T a) { from_primitive(a); }
+#define BIG_INTEGER_CTOR(T)                                                                                            \
+  big_integer::big_integer(T a) { from_primitive(a); }
 
 BIG_INTEGER_CTOR(short)
 BIG_INTEGER_CTOR(unsigned short)
@@ -48,7 +49,7 @@ big_integer::big_integer(const std::string& str) : is_negative_(str.starts_with(
   if (str == "-0") {
     return;
   }
-  if (str.empty()|| std::any_of(str.begin() + is_negative_, str.end(), [](char c) { return !std::isdigit(c); })) {
+  if (str.empty() || std::any_of(str.begin() + is_negative_, str.end(), [](char c) { return !std::isdigit(c); })) {
     throw std::invalid_argument("Invalid string");
   }
   size_t bound = exp10 + is_negative_;
@@ -120,8 +121,7 @@ big_integer& big_integer::operator<<=(int rhs) {
   } else {
     digit prev = 0;
     for (size_t i = old_size; i > 0; --i) {
-      digits_[i - 1 + gain] =
-          (prev << remain) | (digits_[i - 1] >> (digit_size - remain));
+      digits_[i - 1 + gain] = (prev << remain) | (digits_[i - 1] >> (digit_size - remain));
       prev = digits_[i - 1];
     }
     digits_[start] = digits_[0] << remain;
@@ -283,7 +283,6 @@ big_integer& big_integer::negate() {
   return *this;
 }
 
-
 big_integer& big_integer::negate_if(bool cond) {
   is_negative_ = cond && !is_zero() && !is_negative_;
   check_invariant();
@@ -303,13 +302,11 @@ big_integer& big_integer::bitwise(const big_integer& rhs,
     digit rhs_d = rhs.digits_[i] - rhs_borrow;
     borrow = digits_[i] == 0 && borrow;
     rhs_borrow = rhs.digits_[i] == 0 && rhs_borrow;
-    digits_[i] = f(is_negative_ ? ~d : d, rhs.is_negative_ ? ~rhs_d : rhs_d) ^
-                 (is_neg ? big_integer::base : 0);
+    digits_[i] = f(is_negative_ ? ~d : d, rhs.is_negative_ ? ~rhs_d : rhs_d) ^ (is_neg ? big_integer::base : 0);
   }
   for (; i < size(); ++i) {
     digit d = digits_[i] - borrow;
-    digits_[i] = f(is_negative_ ? ~d : d, (rhs.is_negative_ ? base : 0)) ^
-                 (is_neg ? big_integer::base : 0);
+    digits_[i] = f(is_negative_ ? ~d : d, (rhs.is_negative_ ? base : 0)) ^ (is_neg ? big_integer::base : 0);
   }
   is_negative_ = is_neg;
   strip_zeros();
@@ -330,7 +327,7 @@ big_integer big_integer::mul_digit(digit d) const {
   for (size_t i = 0; i < size() - 1; ++i) {
     double_digit product = static_cast<double_digit>(digits_[i]) * d;
     digit lo = product;
-    digit &rd = result.digits_[i];
+    digit& rd = result.digits_[i];
     digit sum = rd + product + carry;
     carry = rd > base - lo || (rd + lo == base && carry);
     rd = sum;
@@ -338,7 +335,7 @@ big_integer big_integer::mul_digit(digit d) const {
   }
   double_digit product = static_cast<double_digit>(digits_[size() - 1]) * d;
   digit lo = product;
-  digit &rd = result.digits_[size() - 1];
+  digit& rd = result.digits_[size() - 1];
   digit sum = rd + product + carry;
   carry = rd > base - lo || (rd + lo == base && carry);
   rd = sum;
@@ -481,8 +478,9 @@ std::pair<big_integer, big_integer> big_integer::divrem(const big_integer& rhs) 
   }
   for (size_t i = m; i > 0; --i) {
     size_t j = i - 1;
-    auto q = static_cast<digit>(((static_cast<double_digit>(a.get_digit_value(n + j)) << digit_size) + a.get_digit_value(n + j - 1)) /
-                                b.digits_[n - 1]);
+    auto q = static_cast<digit>(
+        ((static_cast<double_digit>(a.get_digit_value(n + j)) << digit_size) + a.get_digit_value(n + j - 1)) /
+        b.digits_[n - 1]);
     quotient.digits_[j] = q;
     a.sub_shifted(b.mul_digit(q), j);
     while (a.is_negative_) {
@@ -490,8 +488,7 @@ std::pair<big_integer, big_integer> big_integer::divrem(const big_integer& rhs) 
       a.add_shifted(b, j);
     }
   }
-  return {quotient.negate_if(is_negative_ ^ rhs.is_negative_), 
-    (a >> static_cast<int>(norm)).negate_if(is_negative_)};
+  return {quotient.negate_if(is_negative_ ^ rhs.is_negative_), (a >> static_cast<int>(norm)).negate_if(is_negative_)};
 }
 
 big_integer& big_integer::to_abs() {
@@ -502,7 +499,6 @@ big_integer& big_integer::to_abs() {
 big_integer big_integer::abs() const {
   return big_integer(*this).to_abs();
 }
-
 
 big_integer::big_integer(big_integer::digit d, bool is_negative) : digits_{d}, is_negative_(is_negative) {}
 
@@ -540,7 +536,6 @@ void big_integer::check_invariant() const {
 big_integer::digit big_integer::get_digit_value(size_t n) const {
   return n > size() ? 0 : digits_[n];
 }
-
 
 std::ostream& operator<<(std::ostream& out, const big_integer& a) {
   return out << to_string(a);
