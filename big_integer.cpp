@@ -104,18 +104,22 @@ big_integer& big_integer::operator^=(const big_integer& rhs) {
 
 big_integer& big_integer::operator<<=(int rhs) {
   auto shift = static_cast<digit>(rhs);
-  size_t start = shift / big_integer::digit_size;
-  size_t gain = start + (shift % big_integer::digit_size != 0);
-  size_t remain = shift - start * big_integer::digit_size;
+  size_t start = shift / digit_size;
+  size_t gain = start + (shift % digit_size != 0);
+  size_t remain = shift - start * digit_size;
   size_t old_size = size();
   digits_.resize(old_size + gain);
-  digit prev = 0;
-  for (size_t i = old_size; i > 0; --i) {
-    digits_[i - 1 + gain] =
-        (prev << remain) | (digits_[i - 1] >> ((big_integer::digit_size - remain) % big_integer::digit_size));
-    prev = digits_[i - 1];
+  if (remain == 0) {
+    std::shift_right(digits_.begin(), digits_.end(), static_cast<ptrdiff_t>(gain));
+  } else {
+    digit prev = 0;
+    for (size_t i = old_size; i > 0; --i) {
+      digits_[i - 1 + gain] =
+          (prev << remain) | (digits_[i - 1] >> (digit_size - remain));
+      prev = digits_[i - 1];
+    }
+    digits_[start] = digits_[0] << remain;
   }
-  digits_[start] = digits_[0] << remain;
   std::fill(digits_.begin(), digits_.begin() + static_cast<ptrdiff_t>(start), 0);
   strip_zeros();
   check_invariant();
@@ -129,14 +133,22 @@ big_integer& big_integer::operator>>=(int rhs) {
     return to_zero();
   }
   size_t remain = shift - loss * digit_size;
-  size_t last = size() - loss - 1;
-  for (size_t i = 0; i < last; ++i) {
-    digits_[i] = (digits_[i + loss] >> remain) | (digits_[i + 1 + loss] << ((digit_size - remain) % digit_size));
+  bool is_neg = is_negative_;
+  if (is_neg) {
+    ++*this;
   }
-  digits_[last] = digits_[last + loss] >> remain;
-  std::fill(digits_.end() - static_cast<ptrdiff_t>(loss), digits_.end(), 0);
+  if (remain == 0) {
+    std::shift_left(digits_.begin(), digits_.end(), static_cast<ptrdiff_t>(loss));
+  } else {
+    size_t last = size() - loss - 1;
+    for (size_t i = 0; i < last; ++i) {
+      digits_[i] = (digits_[i + loss] >> remain) | (digits_[i + 1 + loss] << (digit_size - remain));
+    }
+    digits_[last] = digits_[last + loss] >> remain;
+  }
+  digits_.resize(size() - loss);
   strip_zeros();
-  if (is_negative_) {
+  if (is_neg) {
     --*this;
   }
   check_invariant();
