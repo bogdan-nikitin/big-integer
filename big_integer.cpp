@@ -13,6 +13,12 @@
 #include <stdexcept>
 #include <string>
 
+#ifdef DEBUG
+#define DEBUG_ONLY(expr) (expr)
+#else
+#define DEBUG_ONLY(_)
+#endif
+
 const size_t big_integer::digit_size = std::numeric_limits<big_integer::digit>::digits;
 const big_integer::digit big_integer::max_digit = std::numeric_limits<big_integer::digit>::max();
 const big_integer::double_digit big_integer::base = static_cast<big_integer::double_digit>(big_integer::max_digit) + 1;
@@ -53,7 +59,7 @@ big_integer::big_integer(const std::string& str) {
     }
     cur_base *= base10;
   }
-  check_invariant();
+  DEBUG_ONLY(check_invariant());
 }
 
 big_integer::~big_integer() = default;
@@ -114,7 +120,7 @@ big_integer& big_integer::operator<<=(int rhs) {
   }
   std::fill(digits_.begin(), digits_.begin() + static_cast<ptrdiff_t>(first), 0);
   strip_zeros();
-  check_invariant();
+  DEBUG_ONLY(check_invariant());
   return *this;
 }
 
@@ -143,7 +149,7 @@ big_integer& big_integer::operator>>=(int rhs) {
   if (is_neg) {
     --*this;
   }
-  check_invariant();
+  DEBUG_ONLY(check_invariant());
   return *this;
 }
 
@@ -177,7 +183,7 @@ big_integer& big_integer::operator++() {
       digits_.push_back(1);
     }
   }
-  check_invariant();
+  DEBUG_ONLY(check_invariant());
   return *this;
 }
 
@@ -216,7 +222,7 @@ big_integer operator*(const big_integer& a, const big_integer& b) {
     result.abs_add_shifted(a.mul_digit(b.digits_[i]), i);
   }
   result.is_negative_ = a.is_negative_ ^ b.is_negative_;
-  result.check_invariant();
+  DEBUG_ONLY(result.check_invariant());
   return result;
 }
 
@@ -265,19 +271,18 @@ bool operator>=(const big_integer& a, const big_integer& b) = default;
 
 big_integer& big_integer::negate() {
   is_negative_ = !is_zero() && !is_negative_;
-  check_invariant();
+  DEBUG_ONLY(check_invariant());
   return *this;
 }
 
 big_integer& big_integer::negate_if(bool cond) {
   is_negative_ = cond && !is_zero() && !is_negative_;
-  check_invariant();
+  DEBUG_ONLY(check_invariant());
   return *this;
 }
 
-big_integer& big_integer::bitwise(
-    const big_integer& rhs, 
-    const std::function<big_integer::digit(big_integer::digit, big_integer::digit)>& f) {
+big_integer& big_integer::bitwise(const big_integer& rhs,
+                                  const std::function<big_integer::digit(big_integer::digit, big_integer::digit)>& f) {
   if (size() < rhs.size()) {
     digits_.resize(rhs.size());
   }
@@ -300,7 +305,7 @@ big_integer& big_integer::bitwise(
   if (is_neg) {
     --*this;
   }
-  check_invariant();
+  DEBUG_ONLY(check_invariant());
   return *this;
 }
 
@@ -333,7 +338,7 @@ big_integer big_integer::mul_digit(digit d) const {
       result.digits_.push_back(1);
     }
   }
-  result.check_invariant();
+  DEBUG_ONLY(result.check_invariant());
   return result;
 }
 
@@ -348,7 +353,7 @@ void big_integer::strip_zeros() {
   }
   digits_.erase(digits_.begin() + static_cast<ptrdiff_t>(i), digits_.end());
   is_negative_ &= !is_zero();
-  check_invariant();
+  DEBUG_ONLY(check_invariant());
 }
 
 std::strong_ordering big_integer::abs_compare_shifted(const big_integer& rhs, size_t shift) const {
@@ -394,7 +399,7 @@ big_integer& big_integer::abs_add_shifted(const big_integer& rhs, size_t shift) 
   if (carry) {
     digits_.push_back(1);
   }
-  check_invariant();
+  DEBUG_ONLY(check_invariant());
   return *this;
 }
 
@@ -422,7 +427,7 @@ big_integer& big_integer::abs_sub_shifted(const big_integer& rhs, size_t shift) 
   }
   is_negative_ = is_negative_ ^ is_smaller;
   strip_zeros();
-  check_invariant();
+  DEBUG_ONLY(check_invariant());
   return *this;
 }
 
@@ -469,8 +474,7 @@ std::pair<big_integer, big_integer> big_integer::divrem(const big_integer& rhs) 
       a.add_shifted(b, j);
     }
   }
-  return {quotient.negate_if(is_negative_ ^ rhs.is_negative_), 
-          (a >> static_cast<int>(norm)).negate_if(is_negative_)};
+  return {quotient.negate_if(is_negative_ ^ rhs.is_negative_), (a >> static_cast<int>(norm)).negate_if(is_negative_)};
 }
 
 big_integer& big_integer::to_abs() {

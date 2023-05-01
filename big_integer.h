@@ -12,7 +12,8 @@ struct big_integer {
   big_integer();
   big_integer(const big_integer& other);
 
-  template <typename T> requires std::integral<T>
+  template <typename T>
+  requires std::integral<T>
   big_integer(T a) {
     const bool extend = a == std::numeric_limits<T>::min() && std::numeric_limits<T>::is_signed;
     if (extend) {
