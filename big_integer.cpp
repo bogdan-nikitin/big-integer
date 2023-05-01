@@ -124,21 +124,21 @@ big_integer& big_integer::operator<<=(int rhs) {
 
 big_integer& big_integer::operator>>=(int rhs) {
   auto shift = static_cast<digit>(rhs);
-  size_t loss = shift / big_integer::digit_size;
+  size_t loss = shift / digit_size;
   if (loss >= size()) {
     return to_zero();
   }
-  size_t remain = shift - loss * big_integer::digit_size;
+  size_t remain = shift - loss * digit_size;
   size_t last = size() - loss - 1;
   for (size_t i = 0; i < last; ++i) {
-    digits_[i] = (digits_[i + loss] >> remain) | (digits_[i + 1 + loss] << (big_integer::digit_size - remain));
+    digits_[i] = (digits_[i + loss] >> remain) | (digits_[i + 1 + loss] << ((digit_size - remain) % digit_size));
   }
   digits_[last] = digits_[last + loss] >> remain;
   std::fill(digits_.end() - static_cast<ptrdiff_t>(loss), digits_.end(), 0);
+  strip_zeros();
   if (is_negative_) {
     --*this;
   }
-  strip_zeros();
   check_invariant();
   return *this;
 }
@@ -325,7 +325,7 @@ big_integer big_integer::mul_digit(digit d) const {
   carry = rd > base - lo || (rd + lo == base && carry);
   rd = sum;
   digit hi = product >> digit_size;
-  if (hi != 0) {
+  if (hi != 0 || carry) {
     result.digits_.push_back(hi + carry);
     if (hi == base && carry) {
       result.digits_.push_back(1);
