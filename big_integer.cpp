@@ -315,7 +315,7 @@ big_integer& big_integer::bitwise(const big_integer& rhs,
 }
 
 big_integer big_integer::mul_digit(digit d) const {
-  if (d == 0) {
+  if (d == 0 || is_zero()) {
     return {};
   }
   big_integer result;
@@ -459,7 +459,7 @@ size_t big_integer::get_norm() const {
 
 std::pair<big_integer, big_integer> big_integer::divrem(const big_integer& rhs) const {
   if (size() < rhs.size()) {
-    return {};
+    return {{}, *this};
   }
   int norm = static_cast<int>(rhs.get_norm());
   big_integer a = abs() << norm;
