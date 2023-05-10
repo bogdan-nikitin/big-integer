@@ -75,7 +75,21 @@ big_integer& big_integer::operator-=(const big_integer& rhs) {
 }
 
 big_integer& big_integer::operator*=(const big_integer& rhs) {
-  (*this * rhs).swap(*this);
+  size_t old_size = size();
+  digits_.resize(size() + rhs.size());
+  const auto begin = digits_.begin();
+  const auto end = begin + static_cast<ptrdiff_t>(old_size);
+  const auto shifted_begin = begin + static_cast<ptrdiff_t>(rhs.size());
+  std::copy(begin, end, shifted_begin);
+  std::fill(begin, shifted_begin, 0);
+  for (size_t i = 0; i < old_size; ++i) {
+    digit d = digits_[i + rhs.size()];
+    digits_[i + rhs.size()] = 0;
+    abs_add_shifted(rhs.mul_digit(d), i);
+  }
+  is_negative_ ^= rhs.is_negative_;
+  strip_zeros();
+  DEBUG_ONLY(check_invariant());
   return *this;
 }
 
@@ -116,7 +130,7 @@ big_integer& big_integer::operator<<=(int rhs) {
       digits_[i - 1 + gain] = (prev << remain) | (digits_[i - 1] >> (DIGIT_SIZE - remain));
       prev = digits_[i - 1];
     }
-    digits_[first] = digits_[0] << remain;
+    digits_[first] = digits_.front() << remain;
   }
   std::fill(digits_.begin(), digits_.begin() + static_cast<ptrdiff_t>(first), 0);
   strip_zeros();
@@ -225,12 +239,8 @@ big_integer operator-(const big_integer& a, const big_integer& b) {
 }
 
 big_integer operator*(const big_integer& a, const big_integer& b) {
-  big_integer result;
-  for (size_t i = 0; i < b.size(); ++i) {
-    result.abs_add_shifted(a.mul_digit(b.digits_[i]), i);
-  }
-  result.is_negative_ = a.is_negative_ ^ b.is_negative_;
-  DEBUG_ONLY(result.check_invariant());
+  big_integer result(a);
+  result *= b;
   return result;
 }
 
@@ -286,6 +296,59 @@ bool operator<(const big_integer& a, const big_integer& b) = default;
 bool operator>(const big_integer& a, const big_integer& b) = default;
 bool operator<=(const big_integer& a, const big_integer& b) = default;
 bool operator>=(const big_integer& a, const big_integer& b) = default;
+
+big_integer& big_integer::abs_add_digit(digit d) {
+  if (d != 0) {
+    digits_.resize(std::max(static_cast<size_t>(1), size()));
+    bool carry = digits_.front() > MAX_DIGIT - d;
+    digits_.front() += d;
+    for (size_t i = 1; i < size() && carry; ++i) {
+      digits_[i]++;
+      carry = digits_[i] == 0;
+    }
+    if (carry) {
+      digits_.push_back(1);
+    }
+  }
+  return *this;
+}
+
+big_integer& big_integer::abs_sub_digit(digit d) {
+  if (d != 0) {
+    digits_.resize(std::max(static_cast<size_t>(1), size()));
+    bool borrow = d > digits_.front();
+    digits_.front() -= d;
+    for (size_t i = 1; i < size() && borrow; ++i) {
+      borrow = digits_[i] == 0;
+      digits_[i]--;
+    }
+    if (size() == 1 && borrow) {
+      digits_.front() = MAX_DIGIT - digits_.front() + 1;
+      negate();
+    } else {
+      strip_zeros();
+    }
+  }
+  return *this;
+}
+
+big_integer& big_integer::add_digit(digit d) {
+  if (is_negative_) {
+    abs_sub_digit(d);
+  } else {
+    abs_add_digit(d);
+  }
+  return *this;
+}
+
+big_integer& big_integer::sub_digit(digit d) {
+  if (is_negative_) {
+    abs_add_digit(d);
+  } else {
+    abs_sub_digit(d);
+  }
+  return *this;
+}
 
 big_integer& big_integer::negate() {
   is_negative_ = !is_zero() && !is_negative_;
@@ -415,7 +478,6 @@ big_integer& big_integer::abs_add_shifted(const big_integer& rhs, size_t shift) 
   if (carry) {
     digits_.push_back(1);
   }
-  DEBUG_ONLY(check_invariant());
   return *this;
 }
 
@@ -515,7 +577,7 @@ std::string to_string(const big_integer& a) {
   std::vector<big_integer::digit> decimal;
   while (!current.is_zero()) {
     const auto [div, rem] = current.divrem(big_integer::BASE10);
-    decimal.push_back(rem.is_zero() ? 0 : rem.digits_[0]);
+    decimal.push_back(rem.is_zero() ? 0 : rem.digits_.front());
     current = div;
   }
   std::string result = (a.is_negative_ ? "-" : "") + std::to_string(decimal.back());

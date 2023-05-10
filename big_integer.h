@@ -92,6 +92,10 @@ private:
   std::vector<digit> digits_;
   bool is_negative_;
 
+  big_integer& abs_add_digit(digit d);
+  big_integer& abs_sub_digit(digit d);
+  big_integer& add_digit(digit d);
+  big_integer& sub_digit(digit d);
   big_integer& negate();
   big_integer& negate_if(bool cond);
   big_integer& to_abs();
