@@ -601,7 +601,7 @@ void big_integer::check_invariant() const {
 }
 
 big_integer::digit big_integer::get_digit_value(size_t n) const {
-  return n > size() ? 0 : digits_[n];
+  return n >= size() ? 0 : digits_[n];
 }
 
 std::ostream& operator<<(std::ostream& out, const big_integer& a) {
