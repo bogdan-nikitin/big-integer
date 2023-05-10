@@ -26,7 +26,7 @@ struct big_integer {
     digits_.resize(sizeof(T) / sizeof(digit) + (sizeof(T) % sizeof(digit) != 0));
     for (size_t i = 0; i < digits_.size(); ++i) {
       digits_[i] = static_cast<digit>(a);
-      a /= base;
+      a /= BASE;
     }
     if (extend) {
       --*this;
@@ -81,11 +81,11 @@ private:
   using digit = uint32_t;
   using double_digit = uint64_t;
 
-  static const digit max_digit;
-  static const double_digit base;
-  static const size_t digit_size;
-  static const size_t exp10;
-  static const big_integer base10;
+  static const digit MAX_DIGIT;
+  static const double_digit BASE;
+  static const size_t DIGIT_SIZE;
+  static const size_t EXP10;
+  static const big_integer BASE10;
 
   big_integer(digit d, bool is_negative);
 
