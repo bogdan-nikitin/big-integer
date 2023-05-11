@@ -42,22 +42,20 @@ big_integer::big_integer(const std::string& str) {
     return;
   }
   is_negative_ = str.starts_with("-");
-  if (str.empty() || std::any_of(str.begin() + is_negative_, str.end(), [](char c) { return c < 0 || !std::isdigit(c); })) {
+  if (str.empty() ||
+      std::any_of(str.begin() + is_negative_, str.end(), [](char c) { return c < 0 || !std::isdigit(c); })) {
     throw std::invalid_argument("Invalid string");
   }
-  const size_t bound = EXP10 + is_negative_;
-  size_t i = str.size();
-  big_integer cur_base(1);
-  while (true) {
-    const bool in_bound = i >= bound;
-    const size_t begin = in_bound ? i - EXP10 : is_negative_;
-    const size_t end = in_bound ? EXP10 : i - is_negative_;
-    abs_add_shifted(cur_base * big_integer(static_cast<digit>(std::stoul(str.substr(begin, end))), false));
-    i = in_bound ? i - EXP10 : is_negative_;
-    if (i == is_negative_) {
-      break;
-    }
-    cur_base *= BASE10;
+  const size_t length = str.size();
+  const size_t digits = length - is_negative_;
+  const size_t first = digits % EXP10;
+  const size_t cur = first > 0 ? first : EXP10;
+  size_t begin = is_negative_;
+  abs_add_digit(static_cast<digit>(std::stoul(str.substr(begin, cur))));
+  begin += cur;
+  for (; begin + EXP10 <= length; begin += EXP10) {
+    *this *= BASE10;
+    abs_add_digit(static_cast<digit>(std::stoul(str.substr(begin, EXP10))));
   }
   DEBUG_ONLY(check_invariant());
 }
@@ -521,8 +519,7 @@ big_integer& big_integer::sub_shifted(const big_integer& rhs, size_t shift) {
 }
 
 size_t big_integer::get_norm() const {
-  return std::max(static_cast<int>(DIGIT_SIZE) - static_cast<int>(std::bit_width(digits_.back())),
-                  static_cast<int>(0));
+  return std::max(static_cast<int>(DIGIT_SIZE) - static_cast<int>(std::bit_width(digits_.back())), static_cast<int>(0));
 }
 
 std::pair<big_integer, big_integer> big_integer::divrem(const big_integer& rhs) const {
