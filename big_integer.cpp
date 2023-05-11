@@ -37,6 +37,29 @@ big_integer::big_integer() : is_negative_{false} {}
 
 big_integer::big_integer(const big_integer& other) = default;
 
+big_integer::big_integer(unsigned long long a) : big_integer(a, false) {}
+
+big_integer::big_integer(long long a)
+    : big_integer(a == std::numeric_limits<long long>::min()
+                      ? static_cast<unsigned long long>(std::numeric_limits<long long>::max()) + 1
+                      : std::abs(a),
+                  a < 0) {}
+
+big_integer::big_integer(unsigned int a) : big_integer(static_cast<unsigned long long>(a)) {}
+
+big_integer::big_integer(int a) : big_integer(static_cast<long long>(a)) {}
+
+big_integer::big_integer(unsigned long a) : big_integer(static_cast<unsigned long long>(a)) {}
+
+big_integer::big_integer(long a) : big_integer(static_cast<long long>(a)) {}
+
+big_integer::big_integer(unsigned long long a, bool is_negative) : is_negative_(is_negative) {
+  while (a > 0) {
+    digits_.push_back(static_cast<digit>(a));
+    a /= BASE;
+  }
+}
+
 big_integer::big_integer(const std::string& str) {
   if (str == "-0") {
     return;

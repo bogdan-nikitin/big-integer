@@ -4,6 +4,7 @@
 #include <concepts>
 #include <functional>
 #include <iosfwd>
+#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
@@ -12,28 +13,12 @@ struct big_integer {
   big_integer();
   big_integer(const big_integer& other);
 
-  template <typename T>
-  requires std::integral<T>
-  big_integer(T a) {
-    const bool extend = a == std::numeric_limits<T>::min() && std::numeric_limits<T>::is_signed;
-    if (extend) {
-      a = std::numeric_limits<T>::max();
-      is_negative_ = true;
-    } else {
-      is_negative_ = a < 0;
-      a = is_negative_ ? -a : a;
-    }
-    digits_.resize(sizeof(T) / sizeof(digit) + (sizeof(T) % sizeof(digit) != 0));
-    for (size_t i = 0; i < digits_.size(); ++i) {
-      digits_[i] = static_cast<digit>(a);
-      a /= BASE;
-    }
-    if (extend) {
-      --*this;
-    } else {
-      strip_zeros();
-    }
-  }
+  big_integer(unsigned long long a);
+  big_integer(long long a);
+  big_integer(unsigned int a);
+  big_integer(int a);
+  big_integer(unsigned long a);
+  big_integer(long a);
 
   explicit big_integer(const std::string& str);
   ~big_integer();
@@ -88,6 +73,7 @@ private:
   static const big_integer BASE10;
 
   big_integer(digit d, bool is_negative);
+  big_integer(unsigned long long a, bool is_negative);
 
   std::vector<digit> digits_;
   bool is_negative_;
