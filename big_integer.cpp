@@ -62,7 +62,12 @@ big_integer::big_integer(const std::string& str) {
 
 big_integer::~big_integer() = default;
 
-big_integer& big_integer::operator=(const big_integer& other) = default;
+big_integer& big_integer::operator=(const big_integer& other) {
+  if (this != &other) {
+    big_integer(other).swap(*this);
+  }
+  return *this;
+}
 
 big_integer& big_integer::operator+=(const big_integer& rhs) {
   return add_shifted(rhs);
