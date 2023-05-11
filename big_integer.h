@@ -107,7 +107,7 @@ private:
   big_integer& bitwise(const big_integer& rhs, const std::function<digit(digit, digit)>& f);
 
   void swap(big_integer& other);
-  void strip_zeros();
+  void strip_zeros() noexcept;
 
   size_t size() const;
 

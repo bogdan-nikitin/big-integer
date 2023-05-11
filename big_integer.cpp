@@ -425,7 +425,7 @@ size_t big_integer::size() const {
   return digits_.size();
 }
 
-void big_integer::strip_zeros() {
+void big_integer::strip_zeros() noexcept {
   while (!digits_.empty() && digits_.back() == 0) {
     digits_.pop_back();
   }
