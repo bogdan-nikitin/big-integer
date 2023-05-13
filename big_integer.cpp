@@ -210,23 +210,7 @@ big_integer big_integer::operator~() const {
 }
 
 big_integer& big_integer::operator++() {
-  if (is_negative_) {
-    bool borrow = true;
-    for (size_t i = 0; i < size() && borrow; ++i) {
-      borrow = digits_[i] == 0;
-      digits_[i]--;
-    }
-    strip_zeros();
-  } else {
-    bool carry = true;
-    for (size_t i = 0; i < size() && carry; ++i) {
-      digits_[i]++;
-      carry = digits_[i] == 0;
-    }
-    if (carry) {
-      digits_.push_back(1);
-    }
-  }
+  add_digit(1);
   DEBUG_ONLY(check_invariant());
   return *this;
 }
@@ -238,7 +222,8 @@ big_integer big_integer::operator++(int) {
 }
 
 big_integer& big_integer::operator--() {
-  return (++negate()).negate();
+  sub_digit(1);
+  return *this;
 }
 
 big_integer big_integer::operator--(int) {
@@ -601,9 +586,9 @@ std::string to_string(const big_integer& a) {
   big_integer current(a);
   std::vector<big_integer::digit> decimal;
   while (!current.is_zero()) {
-    const auto [div, rem] = current.divrem(big_integer::BASE10);
+    auto [div, rem] = current.divrem(big_integer::BASE10);
     decimal.push_back(rem.is_zero() ? 0 : rem.digits_.front());
-    current = div;
+    current.swap(div);
   }
   std::string result = (a.is_negative_ ? "-" : "") + std::to_string(decimal.back());
   decimal.pop_back();
