@@ -305,16 +305,16 @@ bool operator>=(const big_integer& a, const big_integer& b) = default;
 
 big_integer& big_integer::abs_add_digit(digit d) {
   if (d != 0) {
-    digits_.resize(std::max(static_cast<size_t>(1), size()));
+    const size_t old_size = size();
+    digits_.resize(old_size + 1 + (old_size == 0));
     bool carry = digits_.front() > MAX_DIGIT - d;
     digits_.front() += d;
-    for (size_t i = 1; i < size() && carry; ++i) {
+    for (size_t i = 1; i < old_size && carry; ++i) {
       digits_[i]++;
       carry = digits_[i] == 0;
     }
-    if (carry) {
-      digits_.push_back(1);
-    }
+    digits_.back() = carry;
+    strip_zeros();
   }
   return *this;
 }
@@ -401,9 +401,10 @@ big_integer big_integer::mul_digit(digit d) const {
     return {};
   }
   big_integer result;
-  result.digits_.resize(size());
+  const size_t this_size = size();
+  result.digits_.resize(this_size + 2);
   bool carry = false;
-  for (size_t i = 0; i < size() - 1; ++i) {
+  for (size_t i = 0; i < this_size; ++i) {
     const double_digit product = static_cast<double_digit>(digits_[i]) * d;
     const digit lo = product;
     digit& rd = result.digits_[i];
@@ -412,19 +413,9 @@ big_integer big_integer::mul_digit(digit d) const {
     rd = sum;
     result.digits_[i + 1] += product >> DIGIT_SIZE;
   }
-  const double_digit product = static_cast<double_digit>(digits_.back()) * d;
-  const digit lo = product;
-  digit& rd = result.digits_.back();
-  const digit sum = rd + product + carry;
-  carry = rd > MAX_DIGIT - lo || (rd + lo == MAX_DIGIT && carry);
-  rd = sum;
-  digit hi = product >> DIGIT_SIZE;
-  if (hi != 0 || carry) {
-    result.digits_.push_back(hi + carry);
-    if (hi == MAX_DIGIT && carry) {
-      result.digits_.push_back(1);
-    }
-  }
+  result.digits_[this_size] += carry;
+  result.digits_.back() = carry && result.digits_[this_size] == 0;
+  result.strip_zeros();
   DEBUG_ONLY(result.check_invariant());
   return result;
 }
@@ -467,7 +458,8 @@ big_integer& big_integer::abs_add_shifted(const big_integer& rhs, size_t shift) 
   if (rhs.is_zero()) {
     return *this;
   }
-  digits_.resize(std::max(rhs.size() + shift, size()));
+  const size_t old_size = size();
+  digits_.resize(std::max(rhs.size() + shift, old_size) + 1);
   bool carry = false;
   size_t i = 0;
   for (; i < rhs.size(); ++i) {
@@ -477,13 +469,12 @@ big_integer& big_integer::abs_add_shifted(const big_integer& rhs, size_t shift) 
     carry = d > MAX_DIGIT - rhs_d || (d + rhs_d == MAX_DIGIT && carry);
     d = sum;
   }
-  for (i += shift; i < size() && carry; ++i) {
+  for (i += shift; i < old_size && carry; ++i) {
     digits_[i]++;
     carry = digits_[i] == 0;
   }
-  if (carry) {
-    digits_.push_back(1);
-  }
+  digits_.back() = carry;
+  strip_zeros();
   return *this;
 }
 
