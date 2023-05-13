@@ -102,12 +102,7 @@ big_integer& big_integer::operator-=(const big_integer& rhs) {
 
 big_integer& big_integer::operator*=(const big_integer& rhs) {
   size_t old_size = size();
-  digits_.resize(size() + rhs.size());
-  const auto begin = digits_.begin();
-  const auto end = begin + static_cast<ptrdiff_t>(old_size);
-  const auto shifted_begin = begin + static_cast<ptrdiff_t>(rhs.size());
-  std::copy(begin, end, shifted_begin);
-  std::fill(begin, shifted_begin, 0);
+  digits_.insert(digits_.begin(), rhs.size(), 0);
   for (size_t i = 0; i < old_size; ++i) {
     digit d = digits_[i + rhs.size()];
     digits_[i + rhs.size()] = 0;
