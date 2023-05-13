@@ -218,6 +218,7 @@ big_integer big_integer::operator++(int) {
 
 big_integer& big_integer::operator--() {
   sub_digit(1);
+  DEBUG_ONLY(check_invariant());
   return *this;
 }
 
